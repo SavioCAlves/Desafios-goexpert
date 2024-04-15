@@ -1,9 +1,9 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"time"
 
@@ -60,30 +60,27 @@ func main() {
 // Servidor web e rotas.
 func CotacaoHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+	defer cancel()
 
 	if r.URL.Path != "/cotacao" {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	cotacao, err := Cotacao()
+	cotacao, err := Cotacao(ctx)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 
-	select {
-	case <-time.After(200 * time.Millisecond):
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(cotacao)
-	case <-ctx.Done():
-		log.Println("Request cancelada pelo cliente")
-	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(cotacao)
 
 }
 
 // Processamento da API
-func Cotacao() (*DolarToRealResult, error) {
+func Cotacao(ctx context.Context) (*DolarToRealResult, error) {
 	resp, err := http.Get("https://economia.awesomeapi.com.br/json/last/USD-BRL")
 	if err != nil {
 		return nil, err
@@ -98,7 +95,10 @@ func Cotacao() (*DolarToRealResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	SalvaCotacao(&cot)
+	ctx2 := context.Background()
+	ctx2, cancel := context.WithTimeout(ctx2, 10*time.Millisecond)
+	defer cancel()
+	SalvaCotacao(ctx2, &cot)
 	resultado := DolarToRealResult{
 		VarBid: cot.Usdbrl.VarBid,
 	}
@@ -107,7 +107,7 @@ func Cotacao() (*DolarToRealResult, error) {
 }
 
 // Insercao no banco de dados.
-func SalvaCotacao(dados *DolarToReal) error {
+func SalvaCotacao(ctx context.Context, dados *DolarToReal) error {
 	// ctx := context.Background()
 	// ctx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
 	// defer cancel()
