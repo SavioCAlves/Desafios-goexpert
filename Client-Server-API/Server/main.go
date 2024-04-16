@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"time"
 
@@ -59,16 +60,13 @@ func main() {
 
 // Servidor web e rotas.
 func CotacaoHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	ctx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
-	defer cancel()
 
 	if r.URL.Path != "/cotacao" {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	cotacao, err := Cotacao(ctx)
+	cotacao, err := Cotacao()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
@@ -80,25 +78,35 @@ func CotacaoHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Processamento da API
-func Cotacao(ctx context.Context) (*DolarToRealResult, error) {
-	resp, err := http.Get("https://economia.awesomeapi.com.br/json/last/USD-BRL")
+func Cotacao() (*DolarToRealResult, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://economia.awesomeapi.com.br/json/last/USD-BRL", nil)
 	if err != nil {
+		log.Println(err)
 		return nil, err
 	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	req = req.WithContext(ctx)
+	c := &http.Client{}
+	res, err := c.Do(req)
 	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		log.Println(err)
 		return nil, err
 	}
 	var cot DolarToReal
 	err = json.Unmarshal(body, &cot)
 	if err != nil {
+		log.Println(err)
 		return nil, err
 	}
-	ctx2 := context.Background()
-	ctx2, cancel := context.WithTimeout(ctx2, 10*time.Millisecond)
-	defer cancel()
-	SalvaCotacao(ctx2, &cot)
+
+	SalvaCotacao(&cot)
 	resultado := DolarToRealResult{
 		VarBid: cot.Usdbrl.VarBid,
 	}
@@ -107,37 +115,16 @@ func Cotacao(ctx context.Context) (*DolarToRealResult, error) {
 }
 
 // Insercao no banco de dados.
-func SalvaCotacao(ctx context.Context, dados *DolarToReal) error {
-	// ctx := context.Background()
-	// ctx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
-	// defer cancel()
+func SalvaCotacao(dados *DolarToReal) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
 
 	db, err := gorm.Open(sqlite.Open("cotacao.db"), &gorm.Config{})
 	if err != nil {
+		log.Println(err)
 		panic(err)
 	}
-	// select {
-	// case <-ctx.Done():
-	// 	log.Println("Falha ao escrever no banco da dados")
-	// 	return err
-	// case <-time.After(10 * time.Millisecond):
-	// 	db.Create(&CotacaoBR{
-	// 		Code:       dados.Usdbrl.Code,
-	// 		Codein:     dados.Usdbrl.Codein,
-	// 		Name:       dados.Usdbrl.Name,
-	// 		High:       dados.Usdbrl.High,
-	// 		Low:        dados.Usdbrl.Low,
-	// 		VarBid:     dados.Usdbrl.VarBid,
-	// 		PctChange:  dados.Usdbrl.PctChange,
-	// 		Bid:        dados.Usdbrl.Bid,
-	// 		Ask:        dados.Usdbrl.Ask,
-	// 		Timestamp:  dados.Usdbrl.Timestamp,
-	// 		CreateDate: dados.Usdbrl.CreateDate,
-	// 	})
-	// 	return nil
-	// }
-
-	db.Create(&CotacaoBR{
+	db.WithContext(ctx).Create(&CotacaoBR{
 		Code:       dados.Usdbrl.Code,
 		Codein:     dados.Usdbrl.Codein,
 		Name:       dados.Usdbrl.Name,
