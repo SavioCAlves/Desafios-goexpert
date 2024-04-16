@@ -79,7 +79,7 @@ func CotacaoHandler(w http.ResponseWriter, r *http.Request) {
 
 // Processamento da API
 func Cotacao() (*DolarToRealResult, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "GET", "https://economia.awesomeapi.com.br/json/last/USD-BRL", nil)
 	if err != nil {
@@ -124,7 +124,8 @@ func SalvaCotacao(dados *DolarToReal) error {
 		log.Println(err)
 		panic(err)
 	}
-	db.WithContext(ctx).Create(&CotacaoBR{
+
+	if err = db.WithContext(ctx).Create(&CotacaoBR{
 		Code:       dados.Usdbrl.Code,
 		Codein:     dados.Usdbrl.Codein,
 		Name:       dados.Usdbrl.Name,
@@ -136,6 +137,8 @@ func SalvaCotacao(dados *DolarToReal) error {
 		Ask:        dados.Usdbrl.Ask,
 		Timestamp:  dados.Usdbrl.Timestamp,
 		CreateDate: dados.Usdbrl.CreateDate,
-	})
+	}).Error; err != nil {
+		log.Println(err)
+	}
 	return nil
 }
