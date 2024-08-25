@@ -1,9 +1,9 @@
 # Clean Architecture
 
 ## Esta listagem precisa ser feita com:
-* Endpoint REST (GET /order)
-* Service ListOrders com GRPC
-* Query ListOrders GraphQL
+- Endpoint REST (GET /order)
+- Service ListOrders com GRPC
+- Query ListOrders GraphQL
 
 Não esqueça de criar as migrações necessárias e o arquivo api.http com a request para criar e listar as orders.
 
