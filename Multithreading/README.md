@@ -1,6 +1,6 @@
-= Desafio Multithreading
+# Desafio Multithreading
 
-== Objetivo
+## Objetivo
 
 As duas requisições serão feitas simultaneamente para as seguintes APIs:
 
